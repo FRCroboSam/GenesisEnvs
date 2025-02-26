@@ -54,27 +54,27 @@ def train_dqn(args):
 
 def run(env, agent):
     print("RUNNING THE MODEL")
-    num_episodes = 10 # should be 500
+    num_episodes = 500
     target_update_interval = 10
     for episode in range(num_episodes):
         state = env.reset()
         total_reward = torch.zeros(env.num_envs).to(args.device)
         done_array = torch.tensor([False] * env.num_envs).to(args.device)
-        for step in range(50):
+        for step in range(50):  #todo figure out how many steps there should be
             action = agent.select_action(state)
             next_state, reward, done = env.step(action)
-            agent.memory.add(state, action, reward, next_state, done)
-            agent.train()
+            # agent.memory.add(state, action, reward, next_state, done)
+            # agent.train()
 
             state = next_state
             total_reward += reward
-            done_array = torch.logical_or(done_array, done)
-            if done_array.all():
-                break
+            # done_array = torch.logical_or(done_array, done)
+            # if done_array.all():
+            #     break
 
-        if episode % target_update_interval == 0:
-            agent.update_target_network()
-            agent.save_checkpoint()
+        # if episode % target_update_interval == 0:
+            # agent.update_target_network()
+            # agent.save_checkpoint()
         print(f"Episode {episode}, Total Reward: {total_reward}")
 
 def arg_parser():
