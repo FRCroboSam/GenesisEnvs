@@ -1,11 +1,15 @@
+#THIS CLASS CONTAINS THE OLD GRASPFIXEDBLOCKENV
+    
+    
+    
 import numpy as np
 import genesis as gs
 import torch
 
-class Grasp2:
+class GraspFixedBlockEnv:
     def __init__(self, vis, device, num_envs=1):
         self.device = device
-        self.action_space = 8  
+        self.action_space = 8
         self.state_dim = 6  
 
         self.scene = gs.Scene(

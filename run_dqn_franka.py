@@ -35,7 +35,6 @@ def train_dqn(args):
         load = False
         checkpoint_path = f"logs/{args.task}_dqn_checkpoint.pth"
     os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-    print("CREATING AN ENV")
     env = create_environment(args.task)(vis=args.vis, device=args.device, num_envs=args.num_envs)
     print(f"Created environment: {env}")
     
@@ -63,8 +62,8 @@ def run(env, agent):
         for step in range(50):  #todo figure out how many steps there should be
             action = agent.select_action(state)
             next_state, reward, done = env.step(action)
-            # agent.memory.add(state, action, reward, next_state, done)
-            # agent.train()
+            agent.memory.add(state, action, reward, next_state, done)
+            agent.train()
 
             state = next_state
             total_reward += reward
@@ -94,3 +93,7 @@ def arg_parser():
 if __name__ == "__main__":
     args = arg_parser()
     train_dqn(args)
+
+
+
+#TODO TMRWFIGURE OUT WHY OTEHR ENVS WAY FASTER

@@ -5,8 +5,8 @@ import torch
 class GraspFixedBlockEnv:
     def __init__(self, vis, device, num_envs=1):
         self.device = device
-        self.action_space = 8  
-        self.state_dim = 6  
+        self.action_space = 8
+        self.state_dim = 9
 
         self.scene = gs.Scene(
             viewer_options=gs.options.ViewerOptions(
@@ -71,7 +71,7 @@ class GraspFixedBlockEnv:
 
         obs1 = self.cube.get_pos()
         obs2 = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2 
-        state = torch.concat([obs1, obs2], dim=1)
+        state = torch.concat([obs1, obs2, obs2], dim=1)
         return state
 
     def step(self, actions):
@@ -109,7 +109,7 @@ class GraspFixedBlockEnv:
 
         block_position = self.cube.get_pos()
         gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
-        states = torch.concat([block_position, gripper_position], dim=1)
+        states = torch.concat([block_position, gripper_position, gripper_position], dim=1)
 
         rewards = -torch.norm(block_position - gripper_position, dim=1) + torch.maximum(torch.tensor(0.02), block_position[:, 2]) * 10
         dones = block_position[:, 2] > 0.35
@@ -118,3 +118,5 @@ class GraspFixedBlockEnv:
 if __name__ == "__main__":
     gs.init(backend=gs.gpu, precision="32")
     env = GraspFixedBlockEnv(vis=True)
+    
+    
