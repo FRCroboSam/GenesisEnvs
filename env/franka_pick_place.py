@@ -79,14 +79,15 @@ class FrankaPickPlaceEnv:
 
         
         #goal_target pos  -> TODO TEST THIS OUT 
-        default_pos = np.array([0.8, 0.0, 0.2])
+        default_pos = np.array([0.7, 0.0, 0])
         self.target_poses = []
         for _ in range(50):
-            offset =np.array([random.rand() * 0.3, random.rand() * 0.5 - 0.5, 0.3 * random.rand() + 0.2])
+            offset =np.array([random.rand() * 0.2, random.rand() * 0.6 - 0.3, 0.35 * random.rand() + 0.1])
             target_pos = default_pos + offset
             target_pos = np.repeat(target_pos[np.newaxis], self.num_envs, axis=0)
             self.target_poses.append(target_pos)
         self.goal_index = 0
+        
         
     # give the sphere a random position
     def reset(self):
@@ -101,13 +102,17 @@ class FrankaPickPlaceEnv:
         #seems like these lines cause a lot of lag
         
         #TODO: Use pregenerated points
-        self.goal_target.set_pos(self.target_poses[self.goal_index], envs_idx=self.envs_idx)
-        self.goal_index += 1
+        goal_pos = self.target_poses[self.goal_index] #np.array([0.7, -0.2, 0.3])    # first one is forward, second one is lateral, third is z (height)
+        # goal_pos = np.repeat(goal_pos[np.newaxis], self.num_envs, axis=0)
 
+        cube_pos = np.repeat(cube_pos[np.newaxis], self.num_envs, axis=0)
+        self.goal_target.set_pos(goal_pos, envs_idx=self.envs_idx)
+        self.goal_index += 1
+        obs3 =self.goal_target.get_pos()
         obs1 = self.cube.get_pos()
         obs2 = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2 
-        state = torch.concat([obs1, obs2, obs2], dim=1) # self.goal_target.get_pos()], dim=1)
-    
+        state = torch.concat([obs1, obs2, obs3], dim=1) # self.goal_target.get_pos()], dim=1)
+        print("ORIGINAL SHAPE: " + str(state.shape))
         
         return state
     
@@ -115,6 +120,7 @@ class FrankaPickPlaceEnv:
     #used for calculating reward
     #   
     def get_state_info(self, state):
+        # print(state.shape)
         # print(state)
         info = {}
         cube_pos = state[0][0:3]
@@ -122,54 +128,126 @@ class FrankaPickPlaceEnv:
         
         grip_diff = self.franka.get_link("right_finger").get_pos() - self.franka.get_link("left_finger").get_pos()
         info["grip_width"] = grip_diff.select(dim=-1, index=1)
+        # print("GRIPPER: " + str(gripper_pos))
+        # print("CUBE POS: " + str(cube_pos))
         info['cube_distance_to_gripper'] = torch.norm(gripper_pos - cube_pos)
         info['goal_distance'] = torch.norm(self.goal_target.get_pos() - gripper_pos)
         # print(info)
         return info
         
     
-    def calculate_reward(self, start_state, end_state):
-        #First step, print the correct thing based on the state.
-        cube_pos = self.cube.get_pos()
-        goal_pos = self.goal_target.get_pos()
-        gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
+    # def calculate_reward(self, start_state, end_state):
+    #     #First step, print the correct thing based on the state.
+    #     cube_pos = self.cube.get_pos()
+    #     goal_pos = self.goal_target.get_pos()
+    #     gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
 
         
-        # gripped = (torch.norm(block_position - gripper_position, dim=1) < 0.02)  # Close to block
-        # lifted = self.cube.get_pos()[:, 2] > 0.1  # Block is lifted
-        # placed = torch.norm(self.goal_target.get_pos() - block_position, dim=1) < 0.05  # Block is near goal
+    #     # gripped = (torch.norm(block_position - gripper_position, dim=1) < 0.02)  # Close to block
+    #     # lifted = self.cube.get_pos()[:, 2] > 0.1  # Block is lifted
+    #     # placed = torch.norm(self.goal_target.get_pos() - block_position, dim=1) < 0.05  # Block is near goal
         
-        reward = 0
-        #case 1: block is not close to the gripper -> reward being close to the block, punish closing gripper
-        # print("START STATE")
-        # print(start_state)
-        # print("END STATE")
-        # print(end_state)
-        if end_state["cube_distance_to_gripper"].squeeze() > 0.02:
-            # punish being far away 
-            reward = -torch.norm(cube_pos - gripper_position, dim=1) 
-            #punish gripper being too close (0.08 is open pos)
-            reward -= 0.5 * (6e-2 * end_state['grip_width'])
+    #     reward = 0
+    #     #case 1: block is not close to the gripper -> reward being close to the block, punish closing gripper
+    #     # print("START STATE")
+    #     # print(start_state)
+    #     # print("END STATE")
+    #     # print(end_state)
+    #     # if end_state["cube_distance_to_gripper"].squeeze() > 0.02:
+    #     #     # punish being far away 
+    #     #     reward = -torch.norm(cube_pos - gripper_position, dim=1) 
+    #     #     #punish gripper being too close (0.08 is open pos)
+    #     #     reward -= 0.5 * (6e-2 * end_state['grip_width'])
             
-        #case 2: block is within the range of the gripper but not gripped
-        elif end_state["cube_distance_to_gripper"].squeeze() <= 0.02 and start_state['grip_width'].squeeze() > 5e-2:
-            reward += 2.0  # Encourage reaching the grasping position
-            reward += 2.0 * (0.1- torch.abs(end_state['grip_width']) ) # Reward closing when cube is within range
-        else: # cube distance to gripper < 0.02 and gripper closed 
-            reward += 5.0  # Strong reward for successful grasp
-            #reward -= torch.norm(cube_pos - goal_pos, dim=1)  # Encourage moving cube toward the goal
-            if torch.norm(end_state['goal_distance'], dim=1) < 0.05:  # If very close to the goal
-                reward += 10.0  # Large reward for successful placement
-        print(reward)
-        return reward
+    #     # #case 2: block is within the range of the gripper but not gripped
+    #     # elif end_state["cube_distance_to_gripper"].squeeze() <= 0.02 and start_state['grip_width'].squeeze() > 5e-2:
+    #     #     reward += 4.0 # Encourage reaching the grasping position
+    #     #     reward += 2.0 * (0.1- torch.abs(end_state['grip_width']) ) # Reward closing when cube is within range
+    #     reward += -torch.norm(goal_pos - cube_pos, dim=1) * 5
+
+    #     goal_threshold = 0.05  # Stop threshold distance
+    #     small_reward_threshold = 0.1  # Intermediate reward distance
+
+    #     at_goal = torch.norm(goal_pos - cube_pos, dim=1) < goal_threshold
+    #     near_goal = torch.norm(goal_pos - cube_pos, dim=1) < small_reward_threshold
+
+    #     reward += at_goal.float() * 50  # Large bonus for reaching the goal
+    #     reward += (near_goal.float() * 6) * (~at_goal)  # Smaller reward for being within 0.5 but not at the main goal
+    #     # #old reward policy
+    #     reward += -torch.norm(cube_pos - gripper_position, dim=1) * 4 + torch.maximum(torch.tensor(0.02), cube_pos[:, 2]) * 20
+    #     # # reward -= torch.norm(gripper_position[:,1] - goal_pos[:,1]) * 7
+    #     # reward += torch.maximum(torch.tensor(0.02), cube_pos[:, 2]) * 20#-torch.abs(gripper_position[:, 2] - goal_pos[:, 2]) * 100
         
+    #     # # Encourage the cube to be closer to the goal
+    #     # cube_goal_distance = torch.norm(cube_pos - goal_pos, dim=1)
+    #     # reward -= cube_goal_distance * 5  # Penalize distance from goal
+    #     # # Strong reward for being very close to the goal
+    #     # reward += (cube_goal_distance < 0.1).float() * 100  # Bonus reward of 10 when within threshold
+
+    #     # # Encourage lifting the cube slightly
+    #     # reward += torch.maximum(torch.tensor(0.02), cube_pos[:, 2]) * 20  
+    #     # reward += torch.maximum(torch.tensor(0.02), gripper_position[:, 2]) * 5  
+    #     return reward
         
+    #10 * 50 max for just grasping
+    #50 * 50 max for in air
+    #150 * 50 max for in air and close
+    
+    
+    
+    #ideas if this continues to not work:
+    #   make sure the rewards are higher for the in air state than the other ones
+        #2 tiered system old one works like the original reward system
+        # new one is only based on gripper's position to the goal pos
+        # start implementing DPPG based on the paper
+    def calculate_reward(self, start_state, end_state):
+        # Extract positions
+        cube_pos = self.cube.get_pos()
+        goal_pos = self.goal_target.get_pos()
+        gripper_pos = (self.franka.get_link("left_finger").get_pos() + 
+                    self.franka.get_link("right_finger").get_pos()) / 2
+
+        # Key distances and conditions
+        cube_to_goal = torch.norm(goal_pos - cube_pos, dim=1)
+        gripper_to_cube = torch.norm(cube_pos - gripper_pos, dim=1)
+        gripper_to_goal = torch.norm(goal_pos - gripper_pos, dim=1)
+        cube_height = cube_pos[:, 2]
+        grip_width = end_state['grip_width']
+        
+        # Define task stages
+        is_near_cube = gripper_to_cube < 0.05
+        is_grasped = (gripper_to_cube < 0.08) & (grip_width < 0.06) & (grip_width > 0.03)
+        in_air = cube_height > 0.1
+        near_goal = cube_to_goal < 0.1
+        at_goal = cube_to_goal < 0.05
+
+        # Initialize raw reward
+        reward = gripper_to_cube + torch.maximum(torch.tensor(0.02), cube_height) * 10
+        
+        #add the extra stuff if its in the air 
+        # reward += in_air.float() * (10 + gripper_to_goal)
+        
+
+        # Debug print
+        for i in range(len(reward)):
+            status = []
+            if at_goal[i]: status.append("AT_GOAL")
+            elif near_goal[i]: status.append("NEAR_GOAL")
+            if in_air[i]: status.append("IN_AIR")
+            # if is_grasped[i]: status.append("GRASPED")
+            # if is_near_cube[i]: status.append("NEAR_CUBE")
+            if status:
+                print(f"Env {i}: {' | '.join(status)} | Reward: {reward[i].item():.3f}")
+
+        return reward, near_goal, in_air        
+            
         
     def step(self, actions):
+        goal_pos = self.goal_target.get_pos()
         block_position = self.cube.get_pos()
         gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
-        start_state = torch.concat([block_position, gripper_position, gripper_position]) #self.goal_target.get_pos()], dim=1)
-        # start_state_info = self.get_state_info(start_state)
+        start_state = torch.concat([block_position, gripper_position, goal_pos], dim=1) #self.goal_target.get_pos()], dim=1)
+        start_state_info = self.get_state_info(start_state)
         # actions is a tensor with the action its taking, ie. [5]
         action_mask_0 = actions == 0 # Open gripper
         action_mask_1 = actions == 1 # Close gripper
@@ -205,15 +283,19 @@ class FrankaPickPlaceEnv:
         # move the gripper
         self.franka.control_dofs_position(finger_pos, self.fingers_dof, self.envs_idx)
         self.scene.step()
-
+        goal_pos = self.goal_target.get_pos()
         block_position = self.cube.get_pos()
         gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
-        end_state = torch.concat([block_position, gripper_position, gripper_position], dim=1) #self.goal_target.get_pos()], dim=1)
-        # end_state_info = self.get_state_info(end_state)
+        end_state = torch.concat([block_position, gripper_position, goal_pos], dim=1) #self.goal_target.get_pos()], dim=1)
+        
+        end_state_info = self.get_state_info(end_state)
         #TODO improve this reward function.
-        rewards =  -torch.norm(block_position - gripper_position, dim=1) + torch.maximum(torch.tensor(0.02), block_position[:, 2]) * 100
+        
+        rewards, near_goal, in_air = self.calculate_reward(start_state_info, end_state_info)
+        # rewards=  -torch.norm(block_position - gripper_position, dim=1) + torch.maximum(torch.tensor(0.02), block_position[:, 2]) * 10
         # rewards = torch.tensor(0) #self.calculate_reward(start_state_info, end_state_info)
-        dones = block_position[:, 2] > 0.35
+        # dones = block_position[:, 2] > 0.35 #after this run test: near_goal & in_air
+        dones = in_air & near_goal
         return end_state, rewards, dones
 
 if __name__ == "__main__":

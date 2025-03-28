@@ -12,7 +12,8 @@ task_to_class = {
     'GraspFixedRod': GraspFixedRodEnv,
     'GraspRandomBlock': GraspRandomBlockEnv,
     'GraspRandomRod': GraspRandomRodEnv,
-    'ShadowHandBase': ShadowHandBaseEnv
+    'ShadowHandBase': ShadowHandBaseEnv,
+    'FrankaPickPlace':FrankaPickPlaceEnv
 }
 
 def create_environment(task_name):

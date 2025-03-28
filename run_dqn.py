@@ -34,6 +34,7 @@ def train_dqn(args):
     else:
         load = False
         checkpoint_path = f"logs/{args.task}_dqn_checkpoint.pth"
+    print("ARGS LOAD IS: " + str(load))
     os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
     print("CREATING AN ENV")
     env = create_environment(args.task)(vis=args.vis, device=args.device, num_envs=args.num_envs)
@@ -54,7 +55,8 @@ def train_dqn(args):
 
 def run(env, agent):
     print("RUNNING THE MODEL")
-    num_episodes = 10 # should be 500
+    best_reward = -10000000000000
+    num_episodes = 500 # should be 500
     target_update_interval = 10
     for episode in range(num_episodes):
         state = env.reset()
@@ -63,6 +65,9 @@ def run(env, agent):
         for step in range(50):
             action = agent.select_action(state)
             next_state, reward, done = env.step(action)
+
+
+            
             agent.memory.add(state, action, reward, next_state, done)
             agent.train()
 
@@ -71,7 +76,11 @@ def run(env, agent):
             done_array = torch.logical_or(done_array, done)
             if done_array.all():
                 break
-
+            
+        mean_reward = total_reward.mean().item()
+        if mean_reward > best_reward:
+            agent.save_best_chkpt()
+            best_reward = mean_reward
         if episode % target_update_interval == 0:
             agent.update_target_network()
             agent.save_checkpoint()

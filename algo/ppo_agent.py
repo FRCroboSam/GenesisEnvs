@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.distributions import Categorical
 import argparse
 from network.ppo import PPO
-
+import os
 class PPOAgent:
     def __init__(self, input_dim, output_dim, lr, gamma, clip_epsilon, device, load=False, num_envs=1, hidden_dim=64, checkpoint_path=None):
         self.device = device
@@ -24,7 +24,31 @@ class PPOAgent:
         }
         torch.save(checkpoint, self.checkpoint_path)
         print(f"Checkpoint saved to {self.checkpoint_path}")
+        
+    def save_best_chkpt(self):
+        if self.eval_mode:
+            print("Eval mode - don't save checkpoint")
+        else:
+            # Extract task name from the original checkpoint path
+            task_name = "ppo"  # Assuming args.task contains the relevant identifier
 
+            # Construct new filename with best epoch and mean reward
+            checkpoint_filename = f"{task_name}_best_checkpoint.pth"
+            checkpoint_path = os.path.join("logs", checkpoint_filename)
+
+            # Ensure logs directory exists
+            os.makedirs("logs", exist_ok=True)
+
+            # Save only model state dictionaries
+            checkpoint = {
+                'model_state_dict': self.model.state_dict(),
+                'target_model_state_dict': self.target_model.state_dict()
+            }
+
+            torch.save(checkpoint, checkpoint_path)
+            print(f"BEST Checkpoint saved to {checkpoint_path}")
+            
+            
     def load_checkpoint(self):
         checkpoint = torch.load(self.checkpoint_path, map_location=torch.device(self.device))
         self.model.load_state_dict(checkpoint['model_state_dict'])
