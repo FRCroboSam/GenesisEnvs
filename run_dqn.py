@@ -52,6 +52,7 @@ def train_dqn(args):
     else:
         print("RUNNING THE AGENT")
         run(env, agent)
+        
 
 def run(env, agent):
     print("RUNNING THE MODEL")

@@ -244,6 +244,17 @@ class FrankaPickPlaceEnv:
         
     def step(self, actions):
         goal_pos = self.goal_target.get_pos()
+        block_pos = self.cube.get_pos()
+        gripper_pos = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
+        relative_block_pos = gripper_pos - block_pos
+        lfinger_pos = self.franka.get_link("left_finger").get_pos()[0][1]
+        rfinger_pos = self.franka.get_link("right_finger").get_pos()[0][1]
+        grip_width = rfinger_pos - lfinger_pos
+        print("GRIP WIDTH: " + str(grip_width))
+        
+        
+        
+        goal_pos = self.goal_target.get_pos()
         block_position = self.cube.get_pos()
         gripper_position = (self.franka.get_link("left_finger").get_pos() + self.franka.get_link("right_finger").get_pos()) / 2
         start_state = torch.concat([block_position, gripper_position, goal_pos], dim=1) #self.goal_target.get_pos()], dim=1)

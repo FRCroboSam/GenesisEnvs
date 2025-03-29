@@ -5,3 +5,4 @@ from .grasp_random_rod import GraspRandomRodEnv
 from .shadow_hand import ShadowHandBaseEnv
 from .water_franka import WaterFrankaEnv
 from .franka_pick_place import FrankaPickPlaceEnv
+from .franka_pick_place_ddpg import FrankaPickPlaceDDPG_Env
